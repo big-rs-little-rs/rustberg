@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -e
+
+SCRIPT_PATH="${BASH_SOURCE}"
+while [ -L "${SCRIPT_PATH}" ]; do
+  SCRIPT_DIR="$(cd -P "$(dirname "${SCRIPT_PATH}")" >/dev/null 2>&1 && pwd)"
+  SCRIPT_PATH="$(readlink "${SCRIPT_PATH}")"
+  [[ ${SCRIPT_PATH} != /* ]] && SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_PATH}"
+done
+SCRIPT_PATH="$(readlink -f "${SCRIPT_PATH}")"
+SCRIPT_DIR="$(cd -P "$(dirname -- "${SCRIPT_PATH}")" >/dev/null 2>&1 && pwd)"
+
+cd $SCRIPT_DIR/hadoop/
+
+# Check if HMS DB alreay exists and initialize otherwise
+if [ -d "$SCRIPT_DIR/hadoop/metastore_db" ]; then
+  echo "HMS Derby DB (metastore_db) already exists"
+else
+  echo "HMS Derby DB (metastore_db) doesn't exist" 
+  echo "Creating and Initializing HMS Derby DB"
+  HADOOP_HOME=$(pwd)/hadoop-3.3.1 apache-hive-metastore-3.0.0-bin/bin/schematool -dbType derby --initSchema
+fi
+
+echo "STARTING Hive Metastore"
+HADOOP_HOME=$(pwd)/hadoop-3.3.1 apache-hive-metastore-3.0.0-bin/bin/start-metastore
