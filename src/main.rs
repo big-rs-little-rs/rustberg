@@ -50,5 +50,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("{:#?}", metadata);
 
+    // Temporary: try to decode a manifest list avro file directly
+    let manifest_list_location = "/Users/jsiva/sw/code/rust/rustberg/test_warehouse/db1.db/db1v1table1/metadata/snap-9164160847201777787-1-a3f00225-0cde-48c0-baab-b11dd79d821b.avro";
+    let reader = apache_avro::Reader::new(std::fs::File::open(manifest_list_location).unwrap());
+
+
+    for value in reader.unwrap() {
+        println!("{:?}", apache_avro::from_value::<crate::iceberg::spec::manifest_list::ManifestListV1>(&value.unwrap()))
+    }
+
     Ok(())
 }
