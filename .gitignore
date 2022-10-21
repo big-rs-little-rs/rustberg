@@ -1,5 +1,4 @@
 hadoop/
-test_warehouse/
 python/__pycache__
 python/jars
 .venv/
@@ -49,6 +48,7 @@ Cargo.lock
 # Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
 
 # User-specific stuff
+.idea/*
 .idea/**/workspace.xml
 .idea/**/tasks.xml
 .idea/**/usage.statistics.xml
@@ -157,7 +157,9 @@ fabric.properties
 # https://plugins.jetbrains.com/plugin/8053-azure-toolkit-for-intellij
 .idea/**/azureSettings.xml
 
+python/.ipynb_checkpoints
 
 # Added by cargo
 
 /target
+/test_warehouse/

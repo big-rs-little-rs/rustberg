@@ -21,8 +21,8 @@ pub struct SortField {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Direction {
-    ASC,
-    DESC,
+    Asc,
+    Desc,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -42,7 +42,7 @@ mod tests {
         let directions = ser.map(|ser| {
             serde_json::from_str::<Direction>(ser).expect(&format!("Failed for input {}", ser))
         });
-        assert_eq!([Direction::ASC, Direction::DESC], directions);
+        assert_eq!([Direction::Asc, Direction::Desc], directions);
     }
 
     #[test]

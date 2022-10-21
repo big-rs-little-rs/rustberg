@@ -58,7 +58,7 @@ pub enum IcebergType {
     // the from and into container attributes of serde to get the serializers/deserializers
     // for the public type. This involves additional conversions and boilerplate leading to
     // more chance of errors
-    Basic(BasicType),
+    Primitive(PrimitiveType),
     // Tagged types (note: contained types are annotated with tags in serde)
     Struct(StructType),
     List(ListType),
@@ -73,7 +73,7 @@ pub enum IcebergType {
 // for specific enum variants such as Fixed and Decimal. This avoid boilerplate for using
 // default implementations for others
 #[serde(rename_all = "lowercase", remote = "Self")]
-pub enum BasicType {
+pub enum PrimitiveType {
     Boolean,
     Int,
     Long,
@@ -85,7 +85,7 @@ pub enum BasicType {
     Timestamp,
     Timestamptz,
     String,
-    UUID,
+    Uuid,
     Fixed(u32),
     Binary,
 }
@@ -108,7 +108,7 @@ pub struct MapType {
     pub value: Box<IcebergType>,
 }
 
-impl<'de> Deserialize<'de> for BasicType {
+impl<'de> Deserialize<'de> for PrimitiveType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -127,7 +127,7 @@ impl<'de> Deserialize<'de> for BasicType {
     }
 }
 
-fn try_deserialize_fixed_type<'de, D>(deserializer: D) -> Result<BasicType, D::Error>
+fn try_deserialize_fixed_type<'de, D>(deserializer: D) -> Result<PrimitiveType, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -151,10 +151,10 @@ where
                 .parse::<u32>()
                 .map_err(|_| de::Error::custom(format!("Invalid fixed type length: {}", value)))
         })
-        .and_then(|num| Ok(BasicType::Fixed(num)))
+        .map(PrimitiveType::Fixed)
 }
 
-fn try_deserialize_decimal_type<'de, D>(deserializer: D) -> Result<BasicType, D::Error>
+fn try_deserialize_decimal_type<'de, D>(deserializer: D) -> Result<PrimitiveType, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -203,26 +203,26 @@ where
             )));
         };
 
-        Ok(BasicType::Decimal { precision, scale })
+        Ok(PrimitiveType::Decimal { precision, scale })
     } else {
-        return Err(de::Error::custom(format!(
+        Err(de::Error::custom(format!(
             "Wrong decimal type format: {}",
             value
-        )));
+        )))
     }
 }
 
-impl Serialize for BasicType {
+impl Serialize for PrimitiveType {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         match self {
-            BasicType::Fixed(length) => serializer.serialize_str(&format!("fixed[{}]", length)),
-            BasicType::Decimal { precision, scale } => {
+            PrimitiveType::Fixed(length) => serializer.serialize_str(&format!("fixed[{}]", length)),
+            PrimitiveType::Decimal { precision, scale } => {
                 serializer.serialize_str(&format!("decimal({}, {})", precision, scale))
             }
-            _ => Self::serialize(&self, serializer),
+            _ => Self::serialize(self, serializer),
         }
     }
 }
@@ -235,7 +235,7 @@ mod tests {
     fn test_fixed_type_deser_fails_on_incorrect_format() {
         let data = [r#""fixed(1)"""#, r#""fixed[a]""#];
         for datum in data {
-            let iceberg_type = serde_json::from_str::<BasicType>(datum);
+            let iceberg_type = serde_json::from_str::<PrimitiveType>(datum);
             assert!(iceberg_type.is_err())
         }
     }
@@ -244,7 +244,7 @@ mod tests {
     fn test_decimal_type_deser_fails_on_incorrect_format() {
         let data = [r#""decimal(1)"""#, r#""decimal[40,2]""#];
         for datum in data {
-            let iceberg_type = serde_json::from_str::<BasicType>(datum);
+            let iceberg_type = serde_json::from_str::<PrimitiveType>(datum);
             assert!(iceberg_type.is_err())
         }
     }
@@ -253,26 +253,29 @@ mod tests {
     fn test_fixed_type_deser() {
         let data = [r#""fixed[1]""#, r#""fixed[400]""#];
         let iceberg_types = data.map(|datum| {
-            serde_json::from_str::<BasicType>(datum)
+            serde_json::from_str::<PrimitiveType>(datum)
                 .expect(&format!("Failed for variant {}", datum))
         });
-        assert_eq!([BasicType::Fixed(1), BasicType::Fixed(400)], iceberg_types)
+        assert_eq!(
+            [PrimitiveType::Fixed(1), PrimitiveType::Fixed(400)],
+            iceberg_types
+        )
     }
 
     #[test]
     fn test_decimal_type_deser() {
         let data = [r#""decimal(1, 20)""#, r#""decimal(38, 2)""#];
         let iceberg_types = data.map(|datum| {
-            serde_json::from_str::<BasicType>(datum)
+            serde_json::from_str::<PrimitiveType>(datum)
                 .expect(&format!("Failed for variant {}", datum))
         });
         assert_eq!(
             [
-                BasicType::Decimal {
+                PrimitiveType::Decimal {
                     precision: 1,
                     scale: 20
                 },
-                BasicType::Decimal {
+                PrimitiveType::Decimal {
                     precision: 38,
                     scale: 2
                 }
@@ -284,22 +287,22 @@ mod tests {
     #[test]
     fn test_fixed_and_decimal_type_serde_roundtrip() {
         let iceberg_types = [
-            BasicType::Decimal {
+            PrimitiveType::Decimal {
                 precision: 1,
                 scale: 20,
             },
-            BasicType::Decimal {
+            PrimitiveType::Decimal {
                 precision: 38,
                 scale: 2,
             },
-            BasicType::Fixed(1),
-            BasicType::Fixed(400),
+            PrimitiveType::Fixed(1),
+            PrimitiveType::Fixed(400),
         ];
 
         for iceberg_type in iceberg_types {
             let ser = serde_json::to_string(&iceberg_type)
                 .expect(&format!("Failed to serialize {:?}", iceberg_type));
-            let deser: BasicType =
+            let deser: PrimitiveType =
                 serde_json::from_str(&ser).expect(&format!("Failed to deser {:?}", ser));
             assert_eq!(iceberg_type, deser);
         }
@@ -323,24 +326,24 @@ mod tests {
         ];
 
         let iceberg_types = data.map(|datum| {
-            serde_json::from_str::<BasicType>(datum)
+            serde_json::from_str::<PrimitiveType>(datum)
                 .expect(&format!("Failed for variant {}", datum))
         });
 
         assert_eq!(
             [
-                BasicType::Boolean,
-                BasicType::Int,
-                BasicType::Long,
-                BasicType::Float,
-                BasicType::Double,
-                BasicType::Date,
-                BasicType::Time,
-                BasicType::Timestamp,
-                BasicType::Timestamptz,
-                BasicType::String,
-                BasicType::UUID,
-                BasicType::Binary
+                PrimitiveType::Boolean,
+                PrimitiveType::Int,
+                PrimitiveType::Long,
+                PrimitiveType::Float,
+                PrimitiveType::Double,
+                PrimitiveType::Date,
+                PrimitiveType::Time,
+                PrimitiveType::Timestamp,
+                PrimitiveType::Timestamptz,
+                PrimitiveType::String,
+                PrimitiveType::Uuid,
+                PrimitiveType::Binary
             ],
             iceberg_types
         );
@@ -349,24 +352,24 @@ mod tests {
     #[test]
     fn test_primitive_types_serde_roundtrip() {
         let iceberg_types = [
-            BasicType::Boolean,
-            BasicType::Int,
-            BasicType::Long,
-            BasicType::Float,
-            BasicType::Double,
-            BasicType::Date,
-            BasicType::Time,
-            BasicType::Timestamp,
-            BasicType::Timestamptz,
-            BasicType::String,
-            BasicType::UUID,
-            BasicType::Binary,
+            PrimitiveType::Boolean,
+            PrimitiveType::Int,
+            PrimitiveType::Long,
+            PrimitiveType::Float,
+            PrimitiveType::Double,
+            PrimitiveType::Date,
+            PrimitiveType::Time,
+            PrimitiveType::Timestamp,
+            PrimitiveType::Timestamptz,
+            PrimitiveType::String,
+            PrimitiveType::Uuid,
+            PrimitiveType::Binary,
         ];
 
         for iceberg_type in iceberg_types {
             let ser = serde_json::to_string(&iceberg_type)
                 .expect(&format!("Failed to serialize {:?}", iceberg_type));
-            let deser: BasicType =
+            let deser: PrimitiveType =
                 serde_json::from_str(&ser).expect(&format!("Failed to deser {:?}", ser));
             assert_eq!(iceberg_type, deser);
         }
@@ -441,7 +444,7 @@ mod tests {
                         id: 1,
                         name: "id".to_string(),
                         required: true,
-                        field_type: IcebergType::Basic(BasicType::UUID),
+                        field_type: IcebergType::Primitive(PrimitiveType::Uuid),
                         doc: None,
                         initial_default: Some("0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb".to_string()),
                         write_default: Some("ec5911be-b0a7-458c-8438-c9a3e53cffae".to_string())
@@ -453,7 +456,7 @@ mod tests {
                         field_type: IcebergType::List(ListType {
                             element_id: 3,
                             element_required: true,
-                            element: Box::new(IcebergType::Basic(BasicType::String))
+                            element: Box::new(IcebergType::Primitive(PrimitiveType::String))
                         }),
                         doc: None,
                         initial_default: None,
@@ -465,13 +468,13 @@ mod tests {
                         required: true,
                         field_type: IcebergType::Map(MapType {
                             key_id: 4,
-                            key: Box::new(IcebergType::Basic(BasicType::Decimal {
+                            key: Box::new(IcebergType::Primitive(PrimitiveType::Decimal {
                                 precision: 30,
                                 scale: 20
                             })),
                             value_id: 5,
                             value_required: false,
-                            value: Box::new(IcebergType::Basic(BasicType::Double))
+                            value: Box::new(IcebergType::Primitive(PrimitiveType::Double))
                         }),
                         doc: None,
                         initial_default: None,
@@ -487,7 +490,7 @@ mod tests {
                                     id: 1,
                                     name: "id".to_string(),
                                     required: true,
-                                    field_type: IcebergType::Basic(BasicType::Long),
+                                    field_type: IcebergType::Primitive(PrimitiveType::Long),
                                     doc: None,
                                     initial_default: None,
                                     write_default: None
@@ -499,9 +502,9 @@ mod tests {
                                     field_type: IcebergType::List(ListType {
                                         element_id: 3,
                                         element_required: true,
-                                        element: Box::new(IcebergType::Basic(BasicType::Fixed(
-                                            400
-                                        )))
+                                        element: Box::new(IcebergType::Primitive(
+                                            PrimitiveType::Fixed(400)
+                                        ))
                                     }),
                                     doc: None,
                                     initial_default: None,
@@ -527,7 +530,7 @@ mod tests {
                     id: 1,
                     name: "id".to_string(),
                     required: true,
-                    field_type: IcebergType::Basic(BasicType::UUID),
+                    field_type: IcebergType::Primitive(PrimitiveType::Uuid),
                     doc: None,
                     initial_default: Some("0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb".to_string()),
                     write_default: Some("ec5911be-b0a7-458c-8438-c9a3e53cffae".to_string()),
@@ -539,7 +542,7 @@ mod tests {
                     field_type: IcebergType::List(ListType {
                         element_id: 3,
                         element_required: true,
-                        element: Box::new(IcebergType::Basic(BasicType::String)),
+                        element: Box::new(IcebergType::Primitive(PrimitiveType::String)),
                     }),
                     doc: None,
                     initial_default: None,
@@ -551,13 +554,13 @@ mod tests {
                     required: true,
                     field_type: IcebergType::Map(MapType {
                         key_id: 4,
-                        key: Box::new(IcebergType::Basic(BasicType::Decimal {
+                        key: Box::new(IcebergType::Primitive(PrimitiveType::Decimal {
                             precision: 30,
                             scale: 20,
                         })),
                         value_id: 5,
                         value_required: false,
-                        value: Box::new(IcebergType::Basic(BasicType::Double)),
+                        value: Box::new(IcebergType::Primitive(PrimitiveType::Double)),
                     }),
                     doc: None,
                     initial_default: None,
@@ -573,7 +576,7 @@ mod tests {
                                 id: 1,
                                 name: "id".to_string(),
                                 required: true,
-                                field_type: IcebergType::Basic(BasicType::Long),
+                                field_type: IcebergType::Primitive(PrimitiveType::Long),
                                 doc: None,
                                 initial_default: None,
                                 write_default: None,
@@ -585,7 +588,9 @@ mod tests {
                                 field_type: IcebergType::List(ListType {
                                     element_id: 3,
                                     element_required: true,
-                                    element: Box::new(IcebergType::Basic(BasicType::Fixed(400))),
+                                    element: Box::new(IcebergType::Primitive(
+                                        PrimitiveType::Fixed(400),
+                                    )),
                                 }),
                                 doc: None,
                                 initial_default: None,
@@ -674,7 +679,7 @@ mod tests {
                     id: 1,
                     name: "id".to_string(),
                     required: true,
-                    field_type: IcebergType::Basic(BasicType::UUID),
+                    field_type: IcebergType::Primitive(PrimitiveType::Uuid),
                     doc: None,
                     initial_default: Some("0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb".to_string()),
                     write_default: Some("ec5911be-b0a7-458c-8438-c9a3e53cffae".to_string()),
@@ -686,7 +691,7 @@ mod tests {
                     field_type: IcebergType::List(ListType {
                         element_id: 3,
                         element_required: true,
-                        element: Box::new(IcebergType::Basic(BasicType::String)),
+                        element: Box::new(IcebergType::Primitive(PrimitiveType::String)),
                     }),
                     doc: None,
                     initial_default: None,
@@ -698,13 +703,13 @@ mod tests {
                     required: true,
                     field_type: IcebergType::Map(MapType {
                         key_id: 4,
-                        key: Box::new(IcebergType::Basic(BasicType::Decimal {
+                        key: Box::new(IcebergType::Primitive(PrimitiveType::Decimal {
                             precision: 30,
                             scale: 20,
                         })),
                         value_id: 5,
                         value_required: false,
-                        value: Box::new(IcebergType::Basic(BasicType::Double)),
+                        value: Box::new(IcebergType::Primitive(PrimitiveType::Double)),
                     }),
                     doc: None,
                     initial_default: None,
@@ -720,7 +725,7 @@ mod tests {
                                 id: 1,
                                 name: "id".to_string(),
                                 required: true,
-                                field_type: IcebergType::Basic(BasicType::Long),
+                                field_type: IcebergType::Primitive(PrimitiveType::Long),
                                 doc: None,
                                 initial_default: None,
                                 write_default: None,
@@ -732,7 +737,9 @@ mod tests {
                                 field_type: IcebergType::List(ListType {
                                     element_id: 3,
                                     element_required: true,
-                                    element: Box::new(IcebergType::Basic(BasicType::Fixed(400))),
+                                    element: Box::new(IcebergType::Primitive(
+                                        PrimitiveType::Fixed(400),
+                                    )),
                                 }),
                                 doc: None,
                                 initial_default: None,
@@ -766,7 +773,7 @@ mod tests {
                     id: 1,
                     name: "id".to_string(),
                     required: true,
-                    field_type: IcebergType::Basic(BasicType::UUID),
+                    field_type: IcebergType::Primitive(PrimitiveType::Uuid),
                     doc: None,
                     initial_default: Some("0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb".to_string()),
                     write_default: Some("ec5911be-b0a7-458c-8438-c9a3e53cffae".to_string()),
@@ -778,7 +785,7 @@ mod tests {
                     field_type: IcebergType::List(ListType {
                         element_id: 3,
                         element_required: true,
-                        element: Box::new(IcebergType::Basic(BasicType::String)),
+                        element: Box::new(IcebergType::Primitive(PrimitiveType::String)),
                     }),
                     doc: None,
                     initial_default: None,
@@ -790,13 +797,13 @@ mod tests {
                     required: true,
                     field_type: IcebergType::Map(MapType {
                         key_id: 4,
-                        key: Box::new(IcebergType::Basic(BasicType::Decimal {
+                        key: Box::new(IcebergType::Primitive(PrimitiveType::Decimal {
                             precision: 30,
                             scale: 20,
                         })),
                         value_id: 5,
                         value_required: false,
-                        value: Box::new(IcebergType::Basic(BasicType::Double)),
+                        value: Box::new(IcebergType::Primitive(PrimitiveType::Double)),
                     }),
                     doc: None,
                     initial_default: None,
@@ -812,7 +819,7 @@ mod tests {
                                 id: 1,
                                 name: "id".to_string(),
                                 required: true,
-                                field_type: IcebergType::Basic(BasicType::Long),
+                                field_type: IcebergType::Primitive(PrimitiveType::Long),
                                 doc: None,
                                 initial_default: None,
                                 write_default: None,
@@ -824,7 +831,9 @@ mod tests {
                                 field_type: IcebergType::List(ListType {
                                     element_id: 3,
                                     element_required: true,
-                                    element: Box::new(IcebergType::Basic(BasicType::Fixed(400))),
+                                    element: Box::new(IcebergType::Primitive(
+                                        PrimitiveType::Fixed(400),
+                                    )),
                                 }),
                                 doc: None,
                                 initial_default: None,

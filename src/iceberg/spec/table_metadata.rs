@@ -97,31 +97,29 @@ impl<'de> Deserialize<'de> for TableMetadata {
         D: Deserializer<'de>,
     {
         let value = Value::deserialize(deserializer)?;
-        let format_version = value.get("format-version").ok_or(serde::de::Error::custom(
+        let format_version = value.get("format-version").ok_or_else(|| serde::de::Error::custom(
             "Unable to find 'format-version' key in metaedata",
         ))?;
         let format_version = format_version
             .as_i64()
-            .ok_or(serde::de::Error::custom(format!(
+            .ok_or_else(|| serde::de::Error::custom(format!(
                 "Invalid 'format-version' in metadata: {:?}",
                 format_version
             )))?;
 
         match format_version {
             2 => TableMetadataV2::deserialize(value)
-                .map(|v2| TableMetadata::V2(v2))
+                .map(TableMetadata::V2)
                 .map_err(|e| {
                     serde::de::Error::custom(format!(
-                        "Unable to deserialize version 2 metadata: error: {}",
-                        e.to_string()
+                        "Unable to deserialize version 2 metadata: error: {}", e
                     ))
                 }),
             1 => TableMetadataV1::deserialize(value)
-                .map(|v1| TableMetadata::V1(v1))
+                .map(TableMetadata::V1)
                 .map_err(|e| {
                     serde::de::Error::custom(format!(
-                        "Unable to deserialize version 1 metadata: error: {}",
-                        e.to_string()
+                        "Unable to deserialize version 1 metadata: error: {}", e
                     ))
                 }),
             _ => Err(serde::de::Error::custom(format!(

@@ -1,2 +1,2 @@
 mod fb303;
-pub(crate) mod hms_api;
+pub mod hms_api;

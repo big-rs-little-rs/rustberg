@@ -60,7 +60,7 @@ impl Serialize for Transform {
             Transform::Truncate(bucket) => {
                 serializer.serialize_str(&format!("truncate[{}]", bucket))
             }
-            _ => Self::serialize(&self, serializer),
+            _ => Self::serialize(self, serializer),
         }
     }
 }
@@ -89,7 +89,7 @@ where
                 .parse::<u32>()
                 .map_err(|_| de::Error::custom(format!("Invalid bucket number: {}", value)))
         })
-        .and_then(|num| Ok(Transform::Bucket(num)))
+        .map(Transform::Bucket)
 }
 
 fn try_deserialize_truncate<'de, D>(deserializer: D) -> Result<Transform, D::Error>
@@ -116,7 +116,7 @@ where
                 .parse::<u32>()
                 .map_err(|_| de::Error::custom(format!("Invalid truncate number: {}", value)))
         })
-        .and_then(|num| Ok(Transform::Truncate(num)))
+        .map(Transform::Truncate)
 }
 
 #[cfg(test)]

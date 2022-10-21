@@ -47,7 +47,7 @@ impl Serialize for SnapshotV1 {
     where
         S: serde::Serializer,
     {
-        Self::serialize(&self, serializer)
+        Self::serialize(self, serializer)
     }
 }
 
