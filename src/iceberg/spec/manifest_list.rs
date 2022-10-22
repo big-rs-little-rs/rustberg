@@ -1,9 +1,10 @@
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
+
 use crate::iceberg::spec::manifest_list_avro_schema::{
     MANIFEST_LIST_V1_SCHEMA, MANIFEST_LIST_V2_SCHEMA,
 };
-use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 // TODO: Deserialization should really be done based on field-ids and not names (like any other iceberg file)
@@ -124,10 +125,8 @@ impl ManifestListV2 {
     }
 
     pub fn avro_schema<'a>() -> &'a apache_avro::Schema {
-        lazy_static! {
-            static ref SCHEMA: apache_avro::Schema =
-                apache_avro::Schema::parse_str(MANIFEST_LIST_V2_SCHEMA).unwrap();
-        };
+        static SCHEMA: Lazy<apache_avro::Schema> =
+            Lazy::new(|| apache_avro::Schema::parse_str(MANIFEST_LIST_V2_SCHEMA).unwrap());
         &SCHEMA
     }
 }
@@ -138,10 +137,8 @@ impl ManifestListV1 {
     }
 
     pub fn avro_schema<'a>() -> &'a apache_avro::Schema {
-        lazy_static! {
-            static ref SCHEMA: apache_avro::Schema =
-                apache_avro::Schema::parse_str(MANIFEST_LIST_V1_SCHEMA).unwrap();
-        };
+        static SCHEMA: Lazy<apache_avro::Schema> =
+            Lazy::new(|| apache_avro::Schema::parse_str(MANIFEST_LIST_V1_SCHEMA).unwrap());
         &SCHEMA
     }
 }

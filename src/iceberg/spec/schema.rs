@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::de::{self, IntoDeserializer};
 use serde::{Deserialize, Serialize};
@@ -131,10 +131,7 @@ fn try_deserialize_fixed_type<'de, D>(deserializer: D) -> Result<PrimitiveType, 
 where
     D: serde::Deserializer<'de>,
 {
-    lazy_static! {
-        static ref REGEX: Regex = Regex::new(r"^fixed\[(?P<bkt>\d+)\]$").unwrap();
-    };
-
+    static REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^fixed\[(?P<bkt>\d+)]$").unwrap());
     let value = String::deserialize(deserializer)?;
 
     REGEX
@@ -158,10 +155,8 @@ fn try_deserialize_decimal_type<'de, D>(deserializer: D) -> Result<PrimitiveType
 where
     D: serde::Deserializer<'de>,
 {
-    lazy_static! {
-        static ref REGEX: Regex = Regex::new(r"^decimal\((?P<p>\d+)\s*,\s*(?P<s>\d+)\)$").unwrap();
-    };
-
+    static REGEX: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"^decimal\((?P<p>\d+)\s*,\s*(?P<s>\d+)\)$").unwrap());
     let value = String::deserialize(deserializer)?;
 
     if let Some(captures) = REGEX.captures(&value) {

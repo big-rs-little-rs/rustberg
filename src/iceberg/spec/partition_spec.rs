@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::de::{self, IntoDeserializer};
 use serde::{Deserialize, Serialize};
@@ -69,10 +69,7 @@ fn try_deserialize_bucket<'de, D>(deserializer: D) -> Result<Transform, D::Error
 where
     D: serde::Deserializer<'de>,
 {
-    lazy_static! {
-        static ref REGEX: Regex = Regex::new(r"^bucket\[(?P<bucket>\d+)\]$").unwrap();
-    };
-
+    static REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^bucket\[(?P<bucket>\d+)]$").unwrap());
     let value = String::deserialize(deserializer)?;
 
     REGEX
@@ -96,10 +93,8 @@ fn try_deserialize_truncate<'de, D>(deserializer: D) -> Result<Transform, D::Err
 where
     D: serde::Deserializer<'de>,
 {
-    lazy_static! {
-        static ref REGEX: Regex = Regex::new(r"^truncate\[(?P<truncate>\d+)\]$").unwrap();
-    };
-
+    static REGEX: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"^truncate\[(?P<truncate>\d+)]$").unwrap());
     let value = String::deserialize(deserializer)?;
 
     REGEX
