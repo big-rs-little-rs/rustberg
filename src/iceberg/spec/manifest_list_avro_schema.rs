@@ -1,4 +1,4 @@
-pub(crate) const MANIFEST_LIST_V2_SCHEMA: &str = r#"
+pub const MANIFEST_LIST_V2_SCHEMA: &str = r#"
 {
     "type": "record",
     "name": "manifest_list",
@@ -141,7 +141,7 @@ pub(crate) const MANIFEST_LIST_V2_SCHEMA: &str = r#"
 }
 "#;
 
-pub(crate) const MANIFEST_LIST_V1_SCHEMA: &str = r#"
+pub const MANIFEST_LIST_V1_SCHEMA: &str = r#"
 {
     "type": "record",
     "name": "manifest_list",

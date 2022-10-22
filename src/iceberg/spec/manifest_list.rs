@@ -1,4 +1,6 @@
 use once_cell::sync::Lazy;
+#[cfg(test)]
+use proptest_derive::Arbitrary;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -7,6 +9,7 @@ use crate::iceberg::spec::manifest_list_avro_schema::{
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(test, derive(Arbitrary))]
 // TODO: Deserialization should really be done based on field-ids and not names (like any other iceberg file)
 // Manifest V2 reader should be able to read V1 as well. See https://iceberg.apache.org/spec/#specification
 // This is achieved by using default values for fields that are either not present in V1 or
@@ -65,6 +68,7 @@ pub struct ManifestListV2 {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(test, derive(Arbitrary))]
 // TODO: Deserialization should really be done based on field-ids and not names (like any other iceberg file)
 // TODO: Do we really need this V1 struct as according to the iceberg spec V2 readers should read V1 as well? We might if we write to V1
 pub struct ManifestListV1 {
@@ -101,6 +105,7 @@ pub struct ManifestListV1 {
 }
 
 #[derive(Serialize_repr, Deserialize_repr, Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(test, derive(Arbitrary))]
 #[repr(i32)]
 pub enum FileType {
     Data = 0,
@@ -110,6 +115,7 @@ pub enum FileType {
 pub type FieldSummaryV1 = FieldSummaryV2;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct FieldSummaryV2 {
     pub contains_null: bool,
     pub contains_nan: Option<bool>,
@@ -120,26 +126,26 @@ pub struct FieldSummaryV2 {
 }
 
 impl ManifestListV2 {
-    pub fn raw_avro_schema() -> &'static str {
-        MANIFEST_LIST_V2_SCHEMA
-    }
-
     pub fn avro_schema<'a>() -> &'a apache_avro::Schema {
         static SCHEMA: Lazy<apache_avro::Schema> =
             Lazy::new(|| apache_avro::Schema::parse_str(MANIFEST_LIST_V2_SCHEMA).unwrap());
         &SCHEMA
     }
+
+    pub fn raw_avro_schema() -> &'static str {
+        MANIFEST_LIST_V2_SCHEMA
+    }
 }
 
 impl ManifestListV1 {
-    pub fn raw_avro_schema() -> &'static str {
-        MANIFEST_LIST_V1_SCHEMA
-    }
-
     pub fn avro_schema<'a>() -> &'a apache_avro::Schema {
         static SCHEMA: Lazy<apache_avro::Schema> =
             Lazy::new(|| apache_avro::Schema::parse_str(MANIFEST_LIST_V1_SCHEMA).unwrap());
         &SCHEMA
+    }
+
+    pub fn raw_avro_schema() -> &'static str {
+        MANIFEST_LIST_V1_SCHEMA
     }
 }
 
@@ -151,6 +157,7 @@ impl FileType {
 
 #[cfg(test)]
 mod tests {
+    use proptest::proptest;
     use std::path::PathBuf;
 
     use super::*;
@@ -344,6 +351,32 @@ mod tests {
         for record in reader {
             let result: ManifestListV1 = apache_avro::from_value(&record.unwrap()).unwrap();
             assert_eq!(v1_manifest_list, result);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_manifest_list_v1_roundtrip_arbitrary(v1_manifest_list: ManifestListV1) {
+            let mut writer = apache_avro::Writer::new(ManifestListV1::avro_schema(), Vec::new());
+            writer.append_ser(v1_manifest_list.clone()).unwrap();
+            let encoded = writer.into_inner().unwrap();
+            let reader = apache_avro::Reader::new(encoded.as_slice()).unwrap();
+            for record in reader {
+                let result: ManifestListV1 = apache_avro::from_value(&record.unwrap()).unwrap();
+                assert_eq!(v1_manifest_list, result);
+            }
+        }
+
+        #[test]
+        fn test_manifest_list_v2_roundtrip_arbitrary(v2_manifest_list: ManifestListV2) {
+            let mut writer = apache_avro::Writer::new(ManifestListV2::avro_schema(), Vec::new());
+            writer.append_ser(v2_manifest_list.clone()).unwrap();
+            let encoded = writer.into_inner().unwrap();
+            let reader = apache_avro::Reader::new(encoded.as_slice()).unwrap();
+            for record in reader {
+                let result: ManifestListV2 = apache_avro::from_value(&record.unwrap()).unwrap();
+                assert_eq!(v2_manifest_list, result);
+            }
         }
     }
 }
