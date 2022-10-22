@@ -4,7 +4,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 #![allow(unused_extern_crates)]
-#![allow(clippy::too_many_arguments, clippy::type_complexity, clippy::vec_box)]
+#![allow(clippy::too_many_arguments, clippy::type_complexity, clippy::vec_box, clippy::match_single_binding)]
 #![cfg_attr(rustfmt, rustfmt_skip)]
 
 use std::cell::RefCell;
