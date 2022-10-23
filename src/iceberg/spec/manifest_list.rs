@@ -1,5 +1,7 @@
 use once_cell::sync::Lazy;
 #[cfg(test)]
+use proptest;
+#[cfg(test)]
 use proptest_derive::Arbitrary;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -61,9 +63,11 @@ pub struct ManifestListV2 {
     pub deleted_rows_count: i64,
 
     #[serde(default)]
+    #[cfg_attr(test, proptest(strategy(option_vec_strategy)))]
     pub partitions: Option<Vec<FieldSummaryV2>>,
 
     #[serde(with = "serde_bytes", default)]
+    #[cfg_attr(test, proptest(strategy(option_vec_strategy)))]
     pub key_metadata: Option<Vec<u8>>,
 }
 
@@ -94,13 +98,19 @@ pub struct ManifestListV1 {
 
     #[serde(default)]
     pub added_rows_count: Option<i64>,
+
     #[serde(default)]
     pub existing_rows_count: Option<i64>,
+
     #[serde(default)]
     pub deleted_rows_count: Option<i64>,
+
     #[serde(default)]
+    #[cfg_attr(test, proptest(strategy(option_vec_strategy)))]
     pub partitions: Option<Vec<FieldSummaryV1>>,
+
     #[serde(with = "serde_bytes", default)]
+    #[cfg_attr(test, proptest(strategy(option_vec_strategy)))]
     pub key_metadata: Option<Vec<u8>>,
 }
 
@@ -119,10 +129,22 @@ pub type FieldSummaryV1 = FieldSummaryV2;
 pub struct FieldSummaryV2 {
     pub contains_null: bool,
     pub contains_nan: Option<bool>,
+
     #[serde(with = "serde_bytes")]
+    #[cfg_attr(test, proptest(strategy(option_vec_strategy)))]
     pub lower_bound: Option<Vec<u8>>,
+
+    #[cfg_attr(test, proptest(strategy(option_vec_strategy)))]
     #[serde(with = "serde_bytes")]
     pub upper_bound: Option<Vec<u8>>,
+}
+
+#[cfg(test)]
+fn option_vec_strategy<T>() -> impl proptest::strategy::Strategy<Value = Option<Vec<T>>>
+where
+    T: proptest::arbitrary::Arbitrary,
+{
+    proptest::option::of(proptest::collection::vec(T::arbitrary(), 1..10))
 }
 
 impl ManifestListV2 {
